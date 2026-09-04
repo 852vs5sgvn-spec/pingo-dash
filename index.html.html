@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>pingo! DASH - Infinite Ice Runner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #FF8A00; 
+            touch-action: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        
+        .play-btn {
+            background: #F4C244;
+            color: #33373B;
+            border: 4px solid #33373B;
+            box-shadow: 0 6px 0 #33373B;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .play-btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #33373B;
+        }
+        .play-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #33373B;
+        }
+
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div id="uiContainer" class="ui-layer">
+        
+        <!-- Main Menu -->
+        <div id="mainMenu" class="interactive flex flex-col md:flex-row gap-6 items-center md:items-stretch bg-white/95 p-6 md:p-8 rounded-3xl border-4 border-slate-800 shadow-2xl backdrop-blur-sm max-w-4xl w-[95%]">
+            
+            <div class="flex flex-col items-center justify-center flex-1 text-center border-b-2 md:border-b-0 md:border-r-2 border-slate-200 pb-6 md:pb-0 md:pr-6">
+                <h1 class="text-4xl md:text-5xl font-black mb-2 tracking-tight leading-tight" style="background: -webkit-linear-gradient(#FF8A00, #E52E71); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(2px 2px 0px #33373B);">pingo!<br>DASH</h1>
+                <p class="text-slate-600 mb-6 font-bold uppercase tracking-widest text-sm">Crown Shield & Invincibility Update</p>
+                
+                <button id="startBtn" class="play-btn text-2xl font-black px-10 py-4 rounded-xl w-full uppercase tracking-wider mb-4">
+                    Play Now
+                </button>
+                <div class="text-xs text-slate-500 font-bold space-y-1">
+                    <p>🪙 Collect 50 gold coins for a Gold Crown Shield!</p>
+                    <p>🛡️ Losing your crown grants 2 seconds of safety</p>
+                    <p>🧊 Guaranteed Gold Ramp at 1700m</p>
+                    <p>🧲 Magnetic spinning coins & golden fish</p>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col w-full min-w-[250px] max-h-[300px]">
+                <h2 class="text-xl font-black text-slate-800 mb-4 uppercase tracking-wider flex items-center justify-between">
+                    <span>Global Top Runs</span>
+                    <span class="text-xs bg-sky-100 text-sky-600 px-2 py-1 rounded-full">Live</span>
+                </h2>
+                <div class="bg-slate-100 rounded-xl border-2 border-slate-300 flex-1 overflow-y-auto hide-scroll p-2" id="leaderboardList">
+                    <p class="text-sm text-slate-500 text-center mt-10">Loading scores...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over / Submit Score Modal -->
+        <div id="gameOverMenu" class="interactive flex flex-col items-center bg-white/95 p-8 rounded-3xl border-4 border-slate-800 shadow-2xl backdrop-blur-sm max-w-sm w-[90%] text-center hidden">
+            <h2 class="text-4xl font-black text-slate-800 mb-2">CRASHED!</h2>
+            <p class="text-slate-600 font-medium mb-6">You survived for:</p>
+            
+            <div class="bg-sky-100 p-6 rounded-2xl border-2 border-sky-300 mb-8 w-full">
+                <p id="finalScoreDisplay" class="text-5xl font-black text-sky-600">0</p>
+                <p class="text-sm font-bold text-sky-500 uppercase mt-1">Score</p>
+            </div>
+
+            <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="15" class="w-full text-center bg-slate-100 border-2 border-slate-300 rounded-xl p-3 text-lg font-bold text-slate-800 mb-4 focus:outline-none focus:border-sky-500 shadow-inner">
+            
+            <button id="submitScoreBtn" class="play-btn text-xl font-black px-8 py-3 rounded-xl w-full uppercase tracking-wider mb-3">
+                Submit Score
+            </button>
+            <button id="skipBtn" class="text-sm font-bold text-slate-400 hover:text-slate-600 uppercase transition-colors">
+                Skip & Return to Menu
+            </button>
+        </div>
+
+        <!-- In-Game HUD -->
+        <div id="hud" class="absolute top-0 left-0 w-full p-6 flex justify-between items-start hidden pointer-events-none">
+            <div class="text-4xl font-black text-white flex flex-col" style="text-shadow: 3px 3px 0px #33373B;">
+                <span id="scoreText">0</span>
+                <span class="text-sm uppercase tracking-widest opacity-80" style="text-shadow: 1px 1px 0px #33373B;">Score</span>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="bg-yellow-400 border-2 border-slate-800 px-4 py-2 rounded-2xl shadow-lg flex items-center gap-2">
+                    <svg width="24" height="24" viewBox="0 0 24 24" class="inline-block drop-shadow">
+                        <circle cx="12" cy="12" r="10" fill="#FFD700" stroke="#B8860B" stroke-width="2.5"/>
+                        <circle cx="12" cy="12" r="6" fill="#FFF8DC" opacity="0.6"/>
+                    </svg>
+                    <span id="coinCountText" class="text-2xl font-black text-slate-800">0</span>
+                </div>
+
+                <div class="flex flex-col items-end gap-3 pointer-events-none">
+                    <div id="flightBar" class="hidden flex flex-col items-end">
+                        <span class="text-sm uppercase tracking-widest text-sky-300 font-black mb-1" style="text-shadow: 2px 2px 0px #33373B;">Flight Mode</span>
+                        <div class="w-32 h-4 bg-slate-800 rounded-full border-2 border-white overflow-hidden shadow-lg">
+                            <div id="flightFill" class="h-full bg-sky-400 w-full transition-all duration-100"></div>
+                        </div>
+                    </div>
+
+                    <div id="invincibleBar" class="hidden flex flex-col items-end">
+                        <span class="text-sm uppercase tracking-widest text-yellow-300 font-black mb-1" style="text-shadow: 2px 2px 0px #33373B;">Invincible</span>
+                        <div class="w-32 h-4 bg-slate-800 rounded-full border-2 border-white overflow-hidden shadow-lg">
+                            <div id="invincibleFill" class="h-full bg-yellow-400 w-full transition-all duration-100"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getFirestore, collection, addDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+/**
+ * Firebase Setup
+ */
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'pingo-dash-infinite';
+
+let app, auth, db, currentUser = null;
+
+try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+} catch (e) {
+    console.warn("Firebase config missing. Running locally.");
+}
+
+async function initAuth() {
+    if (!auth) return;
+    try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+            await signInAnonymously(auth);
+        }
+    } catch (e) {}
+}
+
+if (auth) {
+    onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        if (user) setupLeaderboardListener();
+    });
+    initAuth();
+}
+
+function setupLeaderboardListener() {
+    if (!currentUser || !db) return;
+    const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+    onSnapshot(lbRef, (snapshot) => {
+        let docs = [];
+        snapshot.forEach(doc => docs.push(doc.data()));
+        docs.sort((a, b) => b.score - a.score);
+        updateLeaderboardUI(docs.slice(0, 50));
+    }, () => {});
+}
+
+function updateLeaderboardUI(scores) {
+    const list = document.getElementById('leaderboardList');
+    if (scores.length === 0) {
+        list.innerHTML = '<p class="text-sm text-slate-500 text-center mt-10">Loading scores...</p>';
+        return;
+    }
+    list.innerHTML = scores.map((s, index) => `
+        <div class="flex justify-between items-center bg-white p-3 rounded-lg mb-2 shadow-sm border border-slate-100">
+            <div class="flex items-center gap-3">
+                <span class="font-black text-slate-300 w-5">${index + 1}</span>
+                <span class="font-bold text-slate-700 truncate max-w-[120px]">${s.name || 'Pingo'}</span>
+            </div>
+            <span class="font-black text-sky-500">${s.score.toLocaleString()}</span>
+        </div>
+    `).join('');
+}
+
+async function submitScore() {
+    const submitBtn = document.getElementById('submitScoreBtn');
+    const nameInput = document.getElementById('playerNameInput').value.trim();
+    const finalScore = Math.floor(score);
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+
+    if (currentUser && db && finalScore > 0) {
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), {
+                name: nameInput || 'Pingo',
+                score: finalScore,
+                date: Date.now(),
+                uid: currentUser.uid
+            });
+        } catch (error) {
+            console.error("Failed to submit score:", error);
+        }
+    }
+    
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit Score';
+    returnToMenu();
+}
+
+/**
+ * Game Configuration & Constants
+ */
+const COLORS = {
+    skyTop: '#FF8A00',
+    skyBottom: '#E52E71',
+    iceLight: '#A0E8FF',
+    iceDark: '#4EB8FF',
+    waterTop: 'rgba(20, 120, 220, 0.6)',
+    waterBottom: 'rgba(0, 50, 150, 0.95)',
+    iceObstacle: 'rgba(200, 245, 255, 0.85)',
+    goldRampBase: '#DAA520',
+    goldRampHighlight: '#FFD700',
+    mountainBack: 'rgba(255, 180, 150, 0.4)', 
+    mountainFront: 'rgba(160, 232, 255, 0.6)',
+    moonGlow: '#FFF8E7',
+    penguinBody: '#33373B',
+    penguinWhite: '#FFFFFF',
+    penguinWing: '#8C9AA2',
+    penguinBeak: '#F4C244',
+    fishBody: '#FFB800',
+    fishFin: '#FFA000',
+    birdHead: '#8FA835',
+    birdBody: '#19A0A0',
+    birdWing: '#8FA835',
+    birdTail: '#19A0A0',
+    birdBeak: '#6B4423',
+    coinGold: '#FFD700',
+    coinEdge: '#B8860B',
+    crownGold: '#FFD700',
+    crownJewel: '#FF0055'
+};
+
+const BPM = 97.35; 
+const BEAT_INTERVAL = 60 / BPM; 
+const GAME_SPEED = 433.4; 
+
+const GRAVITY_NORMAL = 1300; 
+const JUMP_NORMAL = -614; 
+const GRAVITY_FLY = 389;
+const JUMP_FLY_FLAP = -287;
+const GRAVITY_WATER = 578;
+const JUMP_WATER = -324;
+
+const DISTANCE_PER_BEAT = GAME_SPEED * BEAT_INTERVAL; 
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const uiContainer = document.getElementById('uiContainer');
+const mainMenu = document.getElementById('mainMenu');
+const gameOverMenu = document.getElementById('gameOverMenu');
+const hud = document.getElementById('hud');
+
+const invincibleBar = document.getElementById('invincibleBar');
+const invincibleFill = document.getElementById('invincibleFill');
+const flightBar = document.getElementById('flightBar');
+const flightFill = document.getElementById('flightFill');
+const coinCountText = document.getElementById('coinCountText');
+
+let state = 'MENU'; 
+let lastTime = 0;
+let distance = 0;
+let score = 0;
+let coins = 0;
+let crownPowerUp = false; 
+let baseGroundY = 0; 
+let waterGroundY = 0; 
+
+let highestGeneratedDist = 0; 
+
+let zones = [];
+let highestZoneEnd = 0;
+let obstacles = [];
+let particles = [];
+let bubbles = [];
+
+let audioCtx = null;
+let nextNoteTime = 0;
+let currentBeat = 0;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function scheduleAudio() {
+    if (!audioCtx) return;
+    while (nextNoteTime < audioCtx.currentTime + 0.1) {
+        playBeat(nextNoteTime, currentBeat);
+        nextNoteTime += BEAT_INTERVAL;
+        currentBeat++;
+    }
+}
+
+function playBeat(time, beatNum) {
+    if (state !== 'PLAYING') return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    if (beatNum % 4 === 0) {
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.3);
+    } else {
+        osc.frequency.setValueAtTime(100, time);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.2);
+    }
+    gain.gain.setValueAtTime(0.6, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    osc.start(time);
+    osc.stop(time + 0.3);
+}
+
+function playSoundEffect(type) {
+    if (!audioCtx || state !== 'PLAYING') return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    if (type === 'jump') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    } else if (type === 'doubleJump') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    } else if (type === 'swim') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    } else if (type === 'flap') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    } else if (type === 'coin') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(980, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(1320, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    } else if (type === 'powerup') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+        osc.frequency.linearRampToValueAtTime(1600, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    } else if (type === 'shatter') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    }
+    
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.3);
+}
+
+/**
+ * Game Entities
+ */
+const player = {
+    x: 100, 
+    y: 0,
+    width: 50,  
+    height: 35, 
+    vy: 0,
+    isGrounded: true,
+    jumpCount: 0,
+    rotation: 0,
+    invincibleTimer: 0,
+    flightTimer: 0,
+    flightStartTime: 0,
+    flightRampSpawned: false,
+    
+    draw() {
+        ctx.save();
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        
+        if (this.flightTimer > 0) {
+            this.rotation = 0; 
+        } else if (!this.isGrounded && !this.inWater) {
+            this.rotation += 10 * (Math.PI / 180); 
+        } else if (this.inWater) {
+            this.rotation = Math.min(Math.max(this.vy * 0.001, -0.5), 0.5);
+        } else {
+            this.rotation = 0; 
+        }
+        ctx.rotate(this.rotation);
+        
+        if (this.invincibleTimer > 0) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(0, 0, this.width/1.5 + Math.sin(performance.now()/100)*3, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#FFD700';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.fillStyle = COLORS.penguinBody;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.width/2, this.height/2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = COLORS.penguinWhite;
+        ctx.beginPath();
+        ctx.ellipse(8, -3, 14, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = COLORS.penguinWing;
+        ctx.beginPath();
+        let wingAngle = -Math.PI/6;
+        if (this.flightTimer > 0 || (this.inWater && this.vy < 0)) {
+            wingAngle = -Math.PI/6 + Math.sin(performance.now()/50) * 0.6;
+        }
+        ctx.ellipse(-2, 4, 12, 7, wingAngle, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = COLORS.penguinEye;
+        ctx.beginPath();
+        ctx.arc(12, -7, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = COLORS.penguinBeak;
+        ctx.beginPath();
+        ctx.moveTo(22, -2); ctx.lineTo(36, 1); ctx.lineTo(22, 5); ctx.closePath();
+        ctx.fill();
+
+        if (crownPowerUp) {
+            ctx.fillStyle = COLORS.crownGold;
+            ctx.beginPath();
+            ctx.moveTo(-12, -22);
+            ctx.lineTo(-16, -38);
+            ctx.lineTo(-6, -28);
+            ctx.lineTo(0, -42);
+            ctx.lineTo(6, -28);
+            ctx.lineTo(16, -38);
+            ctx.lineTo(12, -22);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#DAA520';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.fillStyle = COLORS.crownJewel;
+            ctx.beginPath();
+            ctx.arc(0, -28, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    },
+    
+    jump(inWater, overWater) {
+        if (inWater) {
+            this.vy = JUMP_WATER;
+            createParticles(this.x, this.y + this.height, 5, '#FFFFFF');
+            playSoundEffect('swim');
+        } else if (this.flightTimer > 0) {
+            this.vy = JUMP_FLY_FLAP;
+            createParticles(this.x, this.y + this.height, 3, COLORS.penguinWhite);
+            playSoundEffect('flap');
+        } else if (overWater) {
+             if (this.jumpCount < 2) {
+                this.vy = JUMP_NORMAL;
+                this.jumpCount++;
+                playSoundEffect('doubleJump');
+            }
+        } else {
+            if (this.isGrounded || this.jumpCount < 2) {
+                this.vy = JUMP_NORMAL;
+                this.isGrounded = false;
+                this.jumpCount++;
+                playSoundEffect(this.jumpCount === 2 ? 'doubleJump' : 'jump');
+                
+                const pColor = this.jumpCount === 2 ? COLORS.penguinBeak : COLORS.penguinWhite;
+                createParticles(this.x + this.width/2, this.y + this.height, 12, pColor);
+            }
+        }
+    }
+};
+
+function createParticles(x, y, count, color) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 150,
+            vy: (Math.random() - 1) * 150,
+            life: 1, color: color
+        });
+    }
+}
+
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt * 1.5;
+        if (p.life <= 0) particles.splice(i, 1);
+        else {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+}
+
+function spawnBubbles() {
+    if (Math.random() < 0.2) {
+        bubbles.push({
+            x: player.x + Math.random() * canvas.width,
+            y: canvas.height + 10,
+            size: Math.random() * 8 + 2,
+            speed: 50 + Math.random() * 80,
+            wobbleOffset: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+function updateBubbles(dt) {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+        let b = bubbles[i];
+        b.y -= b.speed * dt;
+        b.x += Math.sin(performance.now()/300 + b.wobbleOffset) * 20 * dt; 
+        if (b.y < waterGroundY) bubbles.splice(i, 1); 
+        else {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.size, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+}
+
+/**
+ * Zoned Level Generation: Strict 10000m Ice, 5000m Water Schedule
+ */
+function manageZonesAndLevel() {
+    if (highestGeneratedDist < DISTANCE_PER_BEAT * 4) highestGeneratedDist = DISTANCE_PER_BEAT * 4;
+
+    while (highestZoneEnd < distance + canvas.width * 3) {
+        let cycle = Math.floor(highestZoneEnd / 15000);
+        let cycleStart = cycle * 15000;
+        
+        if (highestZoneEnd === cycleStart) {
+            zones.push({ type: 'ICE', start: highestZoneEnd, end: cycleStart + 10000, curveSpawned: false });
+            highestZoneEnd = cycleStart + 10000;
+        } else {
+            zones.push({ type: 'WATER', start: highestZoneEnd, end: cycleStart + 15000, upCurveSpawned: false });
+            highestZoneEnd = cycleStart + 15000;
+        }
+    }
+
+    zones = zones.filter(z => z.end > distance - canvas.width);
+
+    if (!player.flightRampSpawned && distance >= 17000) {
+        player.flightRampSpawned = true;
+        obstacles.push({ type: 'gold_ramp', x: distance + canvas.width + 100, y: baseGroundY, width: 120, height: 60, dead: false });
+    }
+
+    // Generate Obstacles
+    while (highestGeneratedDist < distance + canvas.width * 2) {
+        let previousDist = highestGeneratedDist;
+        let z = zones.find(z => highestGeneratedDist >= z.start && highestGeneratedDist < z.end);
+        
+        if (!z) { 
+            highestGeneratedDist += DISTANCE_PER_BEAT; 
+            continue; 
+        }
+
+        if (z.type === 'ICE') {
+            let prevZ = zones[zones.indexOf(z)-1];
+            
+            if (prevZ && prevZ.type === 'WATER' && !z.curveSpawned) {
+                obstacles.push({ type: 'down_curve', x: z.start, y: waterGroundY, width: 300, height: baseGroundY - waterGroundY, dead: false });
+                z.curveSpawned = true;
+                highestGeneratedDist = Math.max(highestGeneratedDist, z.start + 350); 
+                continue;
+            }
+
+            if (highestGeneratedDist < z.start + 350) {
+                highestGeneratedDist = z.start + 350;
+                continue;
+            }
+
+            highestGeneratedDist += DISTANCE_PER_BEAT * (0.1 + Math.random() * 0.8); 
+
+            const difficulty = Math.min(1, score / 1200); 
+            let maxPattern = 4 + Math.floor(difficulty * 6); 
+            const pattern = Math.floor(Math.random() * Math.min(maxPattern, 10));
+
+            switch (pattern) {
+                case 0:
+                    obstacles.push({ type: 'spike', x: highestGeneratedDist, y: baseGroundY, width: 30, height: 40, dead: false });
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 1.25; break;
+                case 1:
+                    obstacles.push({ type: 'spike', x: highestGeneratedDist, y: baseGroundY, width: 30, height: 40, dead: false });
+                    obstacles.push({ type: 'spike', x: highestGeneratedDist + 30, y: baseGroundY, width: 30, height: 40, dead: false });
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 1.5; break;
+                case 2:
+                    obstacles.push({ type: 'block', x: highestGeneratedDist, y: baseGroundY, width: 40, height: 40, dead: false });
+                    obstacles.push({ type: 'spike', x: highestGeneratedDist + 40, y: baseGroundY - 40, width: 30, height: 40, dead: false });
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 2; break;
+                case 3:
+                    obstacles.push({ type: 'block', x: highestGeneratedDist, y: baseGroundY - 60, width: 100, height: 20, dead: false });
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 2; break;
+                case 4: 
+                    obstacles.push({ type: 'block', x: highestGeneratedDist, y: baseGroundY, width: 50, height: 128, dead: false });
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 2.5; break;
+                case 5:
+                    const spikes = 7 + Math.floor(Math.random() * 3); 
+                    for(let i=0; i<spikes; i++) obstacles.push({ type: 'spike', x: highestGeneratedDist + (i*30), y: baseGroundY, width: 30, height: 40, dead: false });
+                    highestGeneratedDist += (spikes * 30) + (DISTANCE_PER_BEAT * 1.75); break;
+                case 6:
+                    let stepGap1 = 40 + Math.random() * 15;
+                    let stepGap2 = stepGap1 + 40 + Math.random() * 15;
+                    obstacles.push({ type: 'block', x: highestGeneratedDist, y: baseGroundY, width: 40, height: 40, dead: false });
+                    obstacles.push({ type: 'block', x: highestGeneratedDist + stepGap1, y: baseGroundY, width: 40, height: 80, dead: false });
+                    obstacles.push({ type: 'block', x: highestGeneratedDist + stepGap2, y: baseGroundY, width: 40, height: 120, dead: false });
+                    highestGeneratedDist += stepGap2 + DISTANCE_PER_BEAT * 3.5; break;
+                case 7:
+                    obstacles.push({ type: 'block', x: highestGeneratedDist, y: baseGroundY - 120, width: 150, height: 20, dead: false });
+                    obstacles.push({ type: 'spike', x: highestGeneratedDist + 40, y: baseGroundY, width: 30, height: 40, dead: false });
+                    obstacles.push({ type: 'spike', x: highestGeneratedDist + 80, y: baseGroundY, width: 30, height: 40, dead: false });
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 3; break;
+                case 8:
+                    for(let i=0; i<4; i++) obstacles.push({ type: 'spike', x: highestGeneratedDist + (i*30), y: baseGroundY, width: 30, height: 40, dead: false });
+                    let pitGap = 200 + Math.random() * 100;
+                    for(let i=0; i<4; i++) obstacles.push({ type: 'spike', x: highestGeneratedDist + pitGap + (i*30), y: baseGroundY, width: 30, height: 40, dead: false });
+                    highestGeneratedDist += pitGap + 120 + (DISTANCE_PER_BEAT * 2.5); break;
+                case 9:
+                    if (player.flightTimer <= 0) {
+                        obstacles.push({ type: 'gold_ramp', x: highestGeneratedDist, y: baseGroundY, width: 120, height: 60, dead: false });
+                    }
+                    highestGeneratedDist += DISTANCE_PER_BEAT * 1.5; 
+                    break;
+            }
+
+            // Rows of 3 to 5 spinning gold coins above all land geometry
+            let coinCount = 3 + Math.floor(Math.random() * 3); 
+            for(let c = 0; c < coinCount; c++) {
+                obstacles.push({
+                    type: 'coin',
+                    x: highestGeneratedDist + (c * 35) - (coinCount * 35),
+                    y: baseGroundY - 100 - (Math.sin(c * 0.7) * 35),
+                    width: 24,
+                    height: 24,
+                    dead: false
+                });
+            }
+
+        } 
+        else if (z.type === 'WATER') {
+            let prevZ = zones[zones.indexOf(z)-1];
+            
+            if (prevZ && prevZ.type === 'ICE' && !z.upCurveSpawned) {
+                obstacles.push({ type: 'up_curve', x: z.start, y: waterGroundY, width: 300, height: baseGroundY - waterGroundY, dead: false });
+                z.upCurveSpawned = true;
+                highestGeneratedDist = Math.max(highestGeneratedDist, z.start + 350); 
+                continue;
+            }
+
+            if (highestGeneratedDist < z.start + 350) {
+                highestGeneratedDist = z.start + 350;
+                continue;
+            }
+
+            if (highestGeneratedDist > z.end - DISTANCE_PER_BEAT * 4) {
+                 highestGeneratedDist = z.end; 
+            } else {
+                 let size = 60 + Math.random() * 30;
+                 let isSurface = Math.random() < 0.3;
+                 let yPos = isSurface ? waterGroundY + 10 : waterGroundY + 30 + Math.random() * (canvas.height - waterGroundY - 60 - size);
+                 
+                 obstacles.push({ 
+                     type: 'floating_ice', 
+                     x: highestGeneratedDist, 
+                     y: yPos, 
+                     width: size, 
+                     height: size, 
+                     rot: Math.random() * Math.PI, 
+                     bobOffset: Math.random() * Math.PI * 2, 
+                     dead: false 
+                 });
+                 
+                 let spacing = Math.max(220, canvas.width / 4.5);
+                 highestGeneratedDist += spacing + Math.random() * 50;
+            }
+        }
+        
+        if (highestGeneratedDist <= previousDist) {
+            highestGeneratedDist += DISTANCE_PER_BEAT;
+        }
+    }
+
+    obstacles = obstacles.filter(obs => obs.x > distance - canvas.width && !obs.dead);
+}
+
+/**
+ * Core Logic
+ */
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    baseGroundY = canvas.height * 0.75;
+    waterGroundY = canvas.height * 0.25; 
+    
+    player.x = Math.max(60, canvas.width * 0.15); 
+    if (state === 'MENU' || state === 'GAMEOVER') {
+        player.y = baseGroundY - player.height;
+        player.rotation = 0;
+        draw(); 
+    }
+}
+
+function startGame() {
+    initAudio();
+    state = 'PLAYING';
+    distance = 0;
+    highestGeneratedDist = DISTANCE_PER_BEAT * 4; 
+    highestZoneEnd = 0;
+    score = 0; 
+    coins = 0;
+    crownPowerUp = false;
+    coinCountText.textContent = '0';
+    
+    player.y = baseGroundY - player.height;
+    player.vy = 0;
+    player.isGrounded = true;
+    player.flightTimer = 0;
+    player.flightStartTime = 0;
+    player.flightFishSpawned = false;
+    player.flightRampSpawned = false;
+    player.jumpCount = 0;
+    player.rotation = 0;
+    player.invincibleTimer = 0;
+    
+    zones = [];
+    obstacles = [];
+    particles = [];
+    bubbles = [];
+    
+    manageZonesAndLevel();
+    
+    currentBeat = 0;
+    nextNoteTime = audioCtx.currentTime + 0.1;
+    
+    mainMenu.classList.add('hidden');
+    gameOverMenu.classList.add('hidden');
+    hud.classList.remove('hidden');
+    invincibleBar.classList.add('hidden');
+    flightBar.classList.add('hidden');
+    
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
+function triggerGameOver() {
+    state = 'GAMEOVER';
+    createParticles(player.x + player.width/2, player.y + player.height/2, 40, COLORS.penguinBody);
+    createParticles(player.x + player.width/2, player.y + player.height/2, 20, COLORS.skyBottom);
+    player.y = -1000; 
+    
+    if (audioCtx) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.4);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.4);
+    }
+    
+    setTimeout(() => {
+        hud.classList.add('hidden');
+        gameOverMenu.classList.remove('hidden');
+        finalScoreDisplay.textContent = Math.floor(score).toLocaleString();
+        
+        if (window.innerWidth > 768) {
+            document.getElementById('playerNameInput').focus();
+        }
+    }, 1200);
+}
+
+function returnToMenu() {
+    state = 'MENU';
+    gameOverMenu.classList.add('hidden');
+    mainMenu.classList.remove('hidden');
+    document.getElementById('playerNameInput').value = '';
+    resize();
+}
+
+function update(dt) {
+    if (state !== 'PLAYING') return;
+
+    scheduleAudio();
+    distance += GAME_SPEED * dt;
+    score = distance / 10;
+    scoreText.textContent = Math.floor(score).toLocaleString();
+
+    manageZonesAndLevel();
+
+    let pWorldX = player.x + distance;
+    let currentZ = zones.find(z => pWorldX >= z.start && pWorldX < z.end);
+    let overWater = (currentZ && currentZ.type === 'WATER' && pWorldX > currentZ.start + 300);
+    
+    let inWater = overWater && (player.y + player.height/2 > waterGroundY);
+    player.inWater = inWater;
+
+    // Timers
+    if (player.invincibleTimer > 0) {
+        player.invincibleTimer -= dt;
+        invincibleBar.classList.remove('hidden');
+        invincibleFill.style.width = `${Math.max(0, (player.invincibleTimer / 5) * 100)}%`;
+        if (player.invincibleTimer <= 0) invincibleBar.classList.add('hidden');
+    }
+    
+    if (player.flightTimer > 0) {
+        player.flightTimer -= dt;
+        flightBar.classList.remove('hidden');
+        flightFill.style.width = `${Math.max(0, (player.flightTimer / 10) * 100)}%`;
+        
+        let timeInFlight = 10 - player.flightTimer;
+        if (timeInFlight >= 5 && !player.flightFishSpawned) {
+            player.flightFishSpawned = true;
+            obstacles.push({
+                type: 'fish',
+                x: distance + canvas.width + 100,
+                y: canvas.height * 0.35,
+                vy: 0,
+                dead: false,
+                triggered: true
+            });
+        }
+
+        if (player.flightTimer <= 0) {
+            flightBar.classList.add('hidden');
+            player.flightFishSpawned = false;
+        }
+    }
+
+    // Physics Engine Switching
+    if (inWater) {
+        player.flightTimer = 0; 
+        player.vy += GRAVITY_WATER * dt;
+        if (player.vy > 230) player.vy = 230; 
+    } else if (player.flightTimer > 0) {
+        player.vy += GRAVITY_FLY * dt;
+    } else {
+        player.vy += GRAVITY_NORMAL * dt;
+    }
+
+    player.y += player.vy * dt;
+
+    if (!overWater) {
+        if (player.y + player.height >= baseGroundY) {
+            player.y = baseGroundY - player.height;
+            player.vy = 0;
+            player.isGrounded = true;
+            player.jumpCount = 0;
+        }
+    } else {
+        if (player.y > canvas.height) triggerGameOver();
+    }
+
+    for (let obs of obstacles) {
+        if (obs.type === 'fish') {
+            let screenX = obs.x - distance + player.x;
+            if (obs.triggered && !obs.dead && player.flightTimer <= 0) {
+                obs.vy += 450 * dt; 
+                obs.y += obs.vy * dt;
+            }
+        }
+        else if (obs.type === 'floating_ice' && !obs.dead) {
+            obs.rot += 0.4 * dt; 
+            obs.y += Math.sin(performance.now() * 0.002 + obs.bobOffset) * 45 * dt; 
+        }
+        else if (obs.type === 'bird' && !obs.dead) {
+            obs.y += Math.sin(performance.now() * 0.004 + obs.bobOffset) * 30 * dt;
+        }
+    }
+
+    // MAGNETIC ATTRACTION FOR GOLDEN FISH & COINS
+    for (let obs of obstacles) {
+        if (!obs.dead && (obs.type === 'fish' || obs.type === 'coin')) {
+            let screenX = obs.x - distance + player.x;
+            let dx = (screenX + (obs.width/2)) - (player.x + player.width/2);
+            let dy = (obs.y + (obs.height/2)) - (player.y + player.height/2);
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            
+            let pullRadius = obs.type === 'coin' ? 200 : 220;
+            if (dist < pullRadius) {
+                obs.x -= (dx * 2.5) * dt;
+                obs.y -= (dy * 2.5) * dt;
+            }
+        }
+    }
+
+    const pBox = {
+        left: player.x + 12, right: player.x + player.width - 12,
+        top: player.y + 12, bottom: player.y + player.height - 8
+    };
+
+    for (let obs of obstacles) {
+        if (obs.dead) continue;
+        let screenX = obs.x - distance + player.x; 
+        
+        if (obs.type === 'down_curve') {
+            let pWorldCenterX = player.x + player.width/2 + distance;
+            let pWorldRight = player.x + player.width + distance - 12;
+            
+            if (pWorldRight > obs.x && pWorldCenterX < obs.x + obs.width) {
+                let progress = Math.max(0, Math.min(1, (pWorldRight - obs.x) / obs.width));
+                let ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+                let curveFloor = obs.y + ease * obs.height; 
+                
+                if (player.vy >= 0 && player.y + player.height >= curveFloor - 30 && player.y + player.height <= curveFloor + 35) {
+                    player.y = curveFloor - player.height;
+                    player.vy = 0;
+                    player.isGrounded = true;
+                    player.jumpCount = 0;
+                }
+            }
+        }
+        else if (obs.type === 'up_curve') {
+            let pWorldCenterX = player.x + player.width/2 + distance;
+            let pWorldRight = player.x + player.width + distance - 12;
+            
+            if (pWorldRight > obs.x && pWorldCenterX < obs.x + obs.width) {
+                let progress = Math.max(0, Math.min(1, (pWorldRight - obs.x) / obs.width));
+                let ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+                let curveFloor = baseGroundY - ease * obs.height; 
+                
+                if (player.vy >= 0 && player.y + player.height >= curveFloor - 30 && player.y + player.height <= curveFloor + 35) {
+                    player.y = curveFloor - player.height;
+                    player.vy = 0;
+                    player.isGrounded = true;
+                    player.jumpCount = 0;
+                }
+            }
+        }
+        else if (screenX > -100 && screenX < canvas.width + 100) {
+            
+            let oBox = { left: 0, right: 0, top: 0, bottom: 0 };
+            
+            if (obs.type === 'block') oBox = { left: screenX, right: screenX + obs.width, top: obs.y - obs.height, bottom: obs.y };
+            else if (obs.type === 'spike') oBox = { left: screenX + obs.width*0.35, right: screenX + obs.width*0.65, top: obs.y - obs.height*0.8, bottom: obs.y };
+            else if (obs.type === 'gold_ramp') oBox = { left: screenX, right: screenX + obs.width, top: baseGroundY - obs.height, bottom: baseGroundY };
+            else if (obs.type === 'fish') oBox = { left: screenX - 5, right: screenX + 35, top: obs.y - 5, bottom: obs.y + 25 };
+            else if (obs.type === 'coin') oBox = { left: screenX, right: screenX + obs.width, top: obs.y, bottom: obs.y + obs.height };
+            else if (obs.type === 'floating_ice') oBox = { left: screenX + 10, right: screenX + obs.width - 10, top: obs.y + 10, bottom: obs.y + obs.height - 10 };
+            else if (obs.type === 'bird') oBox = { left: screenX + 5, right: screenX + 35, top: obs.y + 5, bottom: obs.y + 25 };
+
+            if (pBox.left < oBox.right && pBox.right > oBox.left && pBox.top < oBox.bottom && pBox.bottom > oBox.top) {
+                
+                if (player.flightTimer > 0 && (obs.type === 'spike' || obs.type === 'block')) {
+                    continue; 
+                }
+
+                if (obs.type === 'coin') {
+                    obs.dead = true;
+                    coins++;
+                    coinCountText.textContent = coins;
+                    playSoundEffect('coin');
+                    createParticles(obs.x - distance + player.x, obs.y, 8, COLORS.coinGold);
+
+                    // Level Up: 50 coins grants Crown Power-Up!
+                    if (coins >= 50 && !crownPowerUp) {
+                        crownPowerUp = true;
+                        playSoundEffect('powerup');
+                    }
+                }
+                else if (obs.type === 'fish') {
+                    player.invincibleTimer = 5; 
+                    obs.dead = true;
+                    playSoundEffect('powerup');
+                    createParticles(obs.x - distance + player.x, obs.y, 20, '#FFD700');
+                } 
+                else if (obs.type === 'gold_ramp') {
+                    player.vy = -550; 
+                    player.flightTimer = 10;
+                    player.flightStartTime = performance.now();
+                    player.flightFishSpawned = false;
+                    player.isGrounded = false;
+                    playSoundEffect('jump');
+                    createParticles(player.x, player.y + player.height, 15, COLORS.goldRampHighlight);
+                    obs.dead = true; 
+                }
+                else if (obs.type === 'block' && player.vy > 0 && pBox.bottom - player.vy * dt <= oBox.top + 20) {
+                    player.y = oBox.top - player.height + 8;
+                    player.vy = 0;
+                    player.isGrounded = true;
+                    player.jumpCount = 0;
+                } 
+                else {
+                    if (crownPowerUp) {
+                        crownPowerUp = false;
+                        coins = 0; 
+                        coinCountText.textContent = '0';
+                        obs.dead = true;
+                        playSoundEffect('shatter');
+                        createParticles(screenX + obs.width/2, obs.y + (obs.height||0)/2, 30, COLORS.crownGold);
+                        
+                        // 2 SECONDS OF INVISIBILITY/SAFETY AFTER LOSING POWER-UP!
+                        player.invincibleTimer = 2.0;
+                    } 
+                    else if (player.invincibleTimer > 0) {
+                        obs.dead = true;
+                        playSoundEffect('shatter');
+                        createParticles(screenX + obs.width/2, obs.y + (obs.height||0)/2, 30, COLORS.iceLight);
+                    } 
+                    else {
+                        triggerGameOver();
+                    }
+                }
+            }
+        }
+    }
+
+    if (player.flightTimer > 0 && Math.random() < 0.03 && obstacles.filter(o => o.type === 'bird' && !o.dead).length < 3) {
+        obstacles.push({
+            type: 'bird',
+            x: distance + canvas.width + 100,
+            y: canvas.height * 0.15 + Math.random() * (canvas.height * 0.4),
+            width: 40,
+            height: 30,
+            bobOffset: Math.random() * Math.PI * 2,
+            dead: false
+        });
+    }
+}
+
+function drawBackground() {
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, baseGroundY);
+    skyGradient.addColorStop(0, COLORS.skyTop);
+    skyGradient.addColorStop(1, COLORS.skyBottom);
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    const moonX = canvas.width * 0.8 - (distance * 0.015);
+    const moonY = canvas.height * 0.2;
+    ctx.fillStyle = COLORS.moonGlow;
+    ctx.shadowBlur = 40; ctx.shadowColor = COLORS.moonGlow;
+    ctx.beginPath(); ctx.arc(moonX, moonY, canvas.height * 0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    const drawMnts = (speed, col, amp) => {
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, baseGroundY);
+        let w = canvas.width * 2; let off = (distance * speed) % w;
+        for(let i=0; i<=20; i++) ctx.lineTo((i*(w/20)) - off, baseGroundY - (Math.sin(i)*amp + amp));
+        for(let i=0; i<=20; i++) ctx.lineTo((i*(w/20)) + w - off, baseGroundY - (Math.sin(i)*amp + amp));
+        ctx.lineTo(canvas.width, baseGroundY); ctx.fill();
+    };
+    drawMnts(0.1, COLORS.mountainBack, 80);
+    drawMnts(0.3, COLORS.mountainFront, 40);
+
+    const iceGrad = ctx.createLinearGradient(0, waterGroundY, 0, canvas.height);
+    iceGrad.addColorStop(0, COLORS.iceLight); iceGrad.addColorStop(1, COLORS.iceDark);
+
+    for (let z of zones) {
+        let startX = z.start - distance + player.x;
+        let endX = z.end - distance + player.x;
+        if (endX < 0 || startX > canvas.width) continue;
+
+        if (z.type === 'ICE') {
+            let prevZ = zones[zones.indexOf(z)-1];
+            
+            if (prevZ && prevZ.type === 'WATER' && startX < canvas.width && startX > -600) {
+                ctx.fillStyle = iceGrad;
+                ctx.beginPath();
+                ctx.moveTo(startX, canvas.height);
+                ctx.lineTo(startX, waterGroundY); 
+                for(let i=0; i<=300; i+=20) {
+                    let progress = i / 300;
+                    let ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+                    ctx.lineTo(startX + i, waterGroundY + ease * (baseGroundY - waterGroundY));
+                }
+                ctx.lineTo(endX, baseGroundY);
+                ctx.lineTo(endX, canvas.height);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.strokeStyle = COLORS.groundLine;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(startX, waterGroundY);
+                for(let i=0; i<=300; i+=20) {
+                    let progress = i / 300;
+                    let ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+                    ctx.lineTo(startX + i, waterGroundY + ease * (baseGroundY - waterGroundY));
+                }
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = iceGrad;
+                ctx.fillRect(startX, baseGroundY, endX - startX + 1, canvas.height - baseGroundY);
+                ctx.fillStyle = COLORS.groundLine;
+                ctx.fillRect(startX, baseGroundY, endX - startX + 1, 4);
+            }
+            
+        } else if (z.type === 'WATER') {
+            const waterGrad = ctx.createLinearGradient(0, waterGroundY, 0, canvas.height);
+            waterGrad.addColorStop(0, COLORS.waterTop); waterGrad.addColorStop(1, COLORS.waterBottom);
+            
+            if (startX > -300 && startX < canvas.width) {
+                ctx.fillStyle = iceGrad;
+                ctx.beginPath();
+                ctx.moveTo(startX, canvas.height);
+                ctx.lineTo(startX, baseGroundY);
+                for(let i=0; i<=300; i+=20) {
+                    let progress = i / 300;
+                    let ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+                    ctx.lineTo(startX + i, baseGroundY - ease * (baseGroundY - waterGroundY));
+                }
+                ctx.lineTo(startX + 300, canvas.height);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = COLORS.groundLine;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(startX, baseGroundY);
+                for(let i=0; i<=300; i+=20) {
+                    let progress = i / 300;
+                    let ease = 0.5 - Math.cos(progress * Math.PI) / 2;
+                    ctx.lineTo(startX + i, baseGroundY - ease * (baseGroundY - waterGroundY));
+                }
+                ctx.stroke();
+
+                let waterStartX = startX + 300;
+                if (waterStartX < canvas.width && endX > waterStartX) {
+                    ctx.fillStyle = waterGrad;
+                    ctx.fillRect(Math.max(0, waterStartX), waterGroundY, endX - Math.max(0, waterStartX), canvas.height - waterGroundY);
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
+                    ctx.fillRect(Math.max(0, waterStartX), waterGroundY, endX - Math.max(0, waterStartX), 4);
+                }
+
+            } else if (startX <= -300) {
+                ctx.fillStyle = waterGrad;
+                ctx.fillRect(Math.max(0, startX + 300), waterGroundY, endX - Math.max(0, startX + 300), canvas.height - waterGroundY);
+                ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
+                ctx.fillRect(Math.max(0, startX + 300), waterGroundY, endX - Math.max(0, startX + 300), 4);
+            }
+        }
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    const sw = 40; const gp = 80; const off = -(distance % (sw + gp));
+    for (let x = off; x < canvas.width; x += sw + gp) {
+        let pWorld = x + distance - player.x;
+        let cz = zones.find(z => pWorld >= z.start && pWorld < z.end);
+        if (cz && (cz.type === 'ICE')) {
+            ctx.fillRect(x, baseGroundY + 4, sw, canvas.height - baseGroundY);
+        }
+    }
+}
+
+function drawFish(screenX, y) {
+    ctx.save();
+    ctx.translate(screenX, y);
+    
+    ctx.fillStyle = COLORS.fishBody;
+    ctx.beginPath();
+    ctx.ellipse(15, 10, 16, 10, -Math.PI / 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = COLORS.fishFin;
+    ctx.beginPath();
+    ctx.moveTo(-1, 16);
+    ctx.lineTo(-12, 24);
+    ctx.lineTo(-8, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(-1, 16);
+    ctx.lineTo(-14, 6);
+    ctx.lineTo(-6, 12);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(22, 6, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+/**
+ * Super Mario Style Spinning Gold Coin Animation
+ */
+function drawCoin(screenX, y) {
+    ctx.save();
+    ctx.translate(screenX + 12, y + 12);
+    
+    let spinFactor = Math.abs(Math.cos(performance.now() * 0.008));
+    ctx.scale(Math.max(0.15, spinFactor), 1);
+
+    ctx.fillStyle = COLORS.coinGold;
+    ctx.strokeStyle = COLORS.coinEdge;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    if (spinFactor > 0.3) {
+        ctx.fillStyle = '#FFF8DC';
+        ctx.beginPath();
+        ctx.ellipse(-2, -3, 3, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function drawVectorBird(screenX, y) {
+    ctx.save();
+    ctx.translate(screenX, y);
+
+    ctx.fillStyle = COLORS.birdBody;
+    ctx.beginPath();
+    ctx.ellipse(15, 12, 16, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = COLORS.birdHead;
+    ctx.beginPath();
+    ctx.moveTo(10, 15);
+    ctx.lineTo(2, 2);
+    ctx.lineTo(24, 6);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = COLORS.birdWing;
+    ctx.beginPath();
+    ctx.ellipse(20, 5, 18, 9, -Math.PI / 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = COLORS.birdTail;
+    ctx.beginPath();
+    ctx.moveTo(25, 14);
+    ctx.lineTo(44, 25);
+    ctx.lineTo(32, 22);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = COLORS.birdBeak;
+    ctx.beginPath();
+    ctx.moveTo(4, 7);
+    ctx.lineTo(-6, 12);
+    ctx.lineTo(4, 17);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#333333';
+    ctx.beginPath();
+    ctx.arc(10, 8, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    drawBackground();
+
+    let pWorldX = player.x + distance;
+    let cz = zones.find(z => pWorldX >= z.start && pWorldX < z.end);
+    if (cz && cz.type === 'WATER' && state === 'PLAYING') spawnBubbles();
+    updateBubbles(1/60); 
+
+    for (let obs of obstacles) {
+        if (obs.dead) continue;
+        let screenX = obs.x - distance + player.x;
+        
+        if (player.flightTimer > 0 && (obs.type === 'spike' || obs.type === 'block')) {
+            continue;
+        }
+
+        if (screenX > -100 && screenX < canvas.width + 100) {
+            
+            if (obs.type === 'fish') {
+                drawFish(screenX, obs.y);
+            }
+            else if (obs.type === 'coin') {
+                drawCoin(screenX, obs.y);
+            }
+            else if (obs.type === 'bird') {
+                drawVectorBird(screenX, obs.y);
+            }
+            else if (obs.type === 'gold_ramp') {
+                ctx.fillStyle = COLORS.goldRampBase; 
+                ctx.strokeStyle = COLORS.goldRampHighlight; 
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(screenX, baseGroundY);
+                ctx.lineTo(screenX + obs.width, baseGroundY - obs.height);
+                ctx.lineTo(screenX + obs.width, baseGroundY);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+            }
+            else if (obs.type === 'floating_ice') {
+                ctx.save();
+                ctx.translate(screenX + obs.width/2, obs.y + obs.height/2);
+                ctx.rotate(obs.rot);
+                ctx.fillStyle = COLORS.iceObstacle;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 2;
+                ctx.fillRect(-obs.width/2, -obs.height/2, obs.width, obs.height);
+                ctx.strokeRect(-obs.width/2, -obs.height/2, obs.width, obs.height);
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillRect(-obs.width/4, -obs.height/4, obs.width/2, obs.height/2);
+                ctx.restore();
+            }
+            else if (obs.type !== 'down_curve' && obs.type !== 'up_curve') {
+                ctx.fillStyle = COLORS.iceObstacle; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5;
+                if (obs.type === 'block') {
+                    ctx.fillRect(screenX, obs.y - obs.height, obs.width, obs.height);
+                    ctx.strokeRect(screenX, obs.y - obs.height, obs.width, obs.height);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.fillRect(screenX + 4, obs.y - obs.height + 4, obs.width - 8, obs.height / 3);
+                } 
+                else if (obs.type === 'spike') {
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, obs.y);
+                    ctx.lineTo(screenX + obs.width / 2, obs.y - obs.height);
+                    ctx.lineTo(screenX + obs.width, obs.y);
+                    ctx.closePath();
+                    ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.beginPath();
+                    ctx.moveTo(screenX + 4, obs.y - 2);
+                    ctx.lineTo(screenX + obs.width / 2, obs.y - obs.height + 6);
+                    ctx.lineTo(screenX + obs.width / 2, obs.y - 2);
+                    ctx.closePath(); ctx.fill();
+                }
+            }
+        }
+    }
+
+    if (state === 'PLAYING' || state === 'MENU') {
+        player.draw();
+    }
+}
+
+function gameLoop(time) {
+    let dt = (time - lastTime) / 1000;
+    lastTime = time;
+    if (dt > 0.1) dt = 0.1;
+
+    update(dt);
+    
+    draw();
+    updateParticles(dt);
+    
+    if (state === 'PLAYING' || state === 'GAMEOVER') {
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+/**
+ * Event Listeners
+ */
+window.addEventListener('resize', resize);
+
+function handleInput(e) {
+    if (state === 'PLAYING') {
+        let pWorldX = player.x + distance;
+        let cz = zones.find(z => pWorldX >= z.start && pWorldX < z.end);
+        let overWater = (cz && cz.type === 'WATER' && pWorldX > cz.start + 300);
+        player.jump(player.inWater, overWater);
+    }
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.target.tagName.toLowerCase() === 'input') return;
+    if (e.code === 'Space') {
+        e.preventDefault(); 
+        handleInput(e);
+    }
+});
+
+canvas.addEventListener('mousedown', handleInput);
+canvas.addEventListener('touchstart', (e) => {
+    if (e.target === canvas) {
+        e.preventDefault(); 
+        handleInput(e);
+    }
+}, { passive: false });
+
+startBtn.addEventListener('click', () => { if (state === 'MENU') startGame(); });
+document.getElementById('submitScoreBtn').addEventListener('click', submitScore);
+skipBtn.addEventListener('click', returnToMenu);
+
+resize();
+</script>
+</body>
+</html>
